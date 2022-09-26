@@ -1,8 +1,22 @@
+enum ProjectStatus{
+    Active, Finished
+}
+
+// Project Type
+class Project {
+    constructor(public id: string, public title: string, public description: string, public people: number, public status: ProjectStatus){
+
+    }
+}
+
+type Listener = (items: Project[]) => void;
+
+
 // Project State Management
 
 class ProjectState {
-    private projects: any[] = [];
-    private listeners: any[] = [];
+    private projects: Project[] = [];
+    private listeners: Listener[] = [];
     private static instancne: ProjectState;
 
     private constructor(){
@@ -17,17 +31,12 @@ class ProjectState {
         return this.instancne;
     }
 
-    addListener(listenerFn: Function){
+    addListener(listenerFn: Listener){
         this.listeners.push(listenerFn);
     }
 
     addProject(title: string, description: string, numOfPeople: number){
-        const newProject = {
-            id: Math.random().toString(),
-            title: title,
-            description: description,
-            people: numOfPeople
-        };
+        const newProject = new Project(Math.random().toString(), title, description, numOfPeople, ProjectStatus.Active);
 
         this.projects.push(newProject);
 
@@ -91,11 +100,41 @@ function validate(validatableInput: Validatable){
 }
 
 
+// Component Base Class
+
+abstract class Component<T extends HTMLElement, U extends HTMLElement> {
+    templateElement: HTMLTemplateElement;
+    hostElement: T;
+    element: U;
+
+    constructor(templateId: string, hostElementId: string, insertAtStart: boolean, newElementId?: string) {
+        this.templateElement = document.getElementById(templateId)! as HTMLTemplateElement;
+        this.hostElement = document.getElementById(hostElementId)! as T;
+
+        const importedNode = document.importNode(this.templateElement.content, true);
+        this.element = importedNode.firstElementChild! as U;
+        if(newElementId){
+            this.element.id = newElementId;
+        }
+
+        this.attach(insertAtStart);
+
+    }
+
+    private attach(insertAtBeginning: boolean) {
+        this.hostElement.insertAdjacentElement(insertAtBeginning? 'afterbegin' : 'beforeend', this.element);
+    }
+
+    abstract configure(): void;
+    abstract renderContent(): void;
+}
+
+
 class ProjectList {
     templateElement: HTMLTemplateElement;
     hostElement: HTMLDivElement;
     element: HTMLElement;
-    assignedProjects: any[] = [];
+    assignedProjects: Project[] = [];
 
     constructor(private type: 'active' | 'finished') {
         this.templateElement = document.getElementById('project-list')! as HTMLTemplateElement;
@@ -105,8 +144,14 @@ class ProjectList {
         this.element = importedNode.firstElementChild! as HTMLElement;
         this.element.id = `${this.type}-projects`;
 
-        projectState.addListener((projects: any[]) => {
-            this.assignedProjects = projects;
+        projectState.addListener((projects: Project[]) => {
+            const relevantProjects = projects.filter(project => {
+                if(this.type === 'active')
+                    return project.status === ProjectStatus.Active;
+                return project.status === ProjectStatus.Finished;
+            });
+
+            this.assignedProjects = relevantProjects;
             this.renderProjects();
         });
 
@@ -116,6 +161,7 @@ class ProjectList {
 
     private renderProjects() {
         const listEl = document.getElementById(`${this.type}-projects-list`)! as HTMLUListElement;
+        listEl.innerHTML = '';
         for(const projectItem of this.assignedProjects){
             const listItem = document.createElement('li');
             listItem.textContent = projectItem.title;
