@@ -1,4 +1,5 @@
 "use strict";
+// drag n drop interfaces
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -43,6 +44,18 @@ class ProjectState extends State {
     addProject(title, description, numOfPeople) {
         const newProject = new Project(Math.random().toString(), title, description, numOfPeople, ProjectStatus.Active);
         this.projects.push(newProject);
+        for (const listenerFn of this.listeners) {
+            listenerFn(this.projects.slice());
+        }
+    }
+    moveProject(projectId, newStatus) {
+        const project = this.projects.find(project => project.id === projectId);
+        if (project && project.status !== newStatus) {
+            project.status = newStatus;
+            this.updateListeners();
+        }
+    }
+    updateListeners() {
         for (const listenerFn of this.listeners) {
             listenerFn(this.projects.slice());
         }
@@ -107,7 +120,17 @@ class ProjectItem extends Component {
     get persons() {
         return this.project.people === 1 ? '1 person' : `${this.project.people} persons`;
     }
+    dragStartHandler(event) {
+        event.dataTransfer.setData('text/plain', this.project.id);
+        event.dataTransfer.effectAllowed = 'move';
+    }
+    // @autobind
+    dragEndHandle(event) {
+        console.log(`dragend`);
+    }
     configure() {
+        this.element.addEventListener('dragstart', this.dragStartHandler);
+        this.element.addEventListener('dragend', this.dragEndHandle);
     }
     renderContent() {
         this.element.querySelector('h2').textContent = this.project.title;
@@ -115,6 +138,9 @@ class ProjectItem extends Component {
         this.element.querySelector('p').textContent = this.project.description;
     }
 }
+__decorate([
+    autobind
+], ProjectItem.prototype, "dragStartHandler", null);
 class ProjectList extends Component {
     constructor(type) {
         super('project-list', 'app', false, `${type}-projects`);
@@ -122,6 +148,21 @@ class ProjectList extends Component {
         this.assignedProjects = [];
         this.configure();
         this.renderContent();
+    }
+    dragOverHandler(event) {
+        if (event.dataTransfer && event.dataTransfer.types[0] === 'text/plain') {
+            event.preventDefault();
+            const listEl = this.element.querySelector('ul');
+            listEl.classList.add('droppable');
+        }
+    }
+    dropHandler(event) {
+        const projectId = event.dataTransfer.getData('text/plain');
+        projectState.moveProject(projectId, this.type === 'active' ? ProjectStatus.Active : ProjectStatus.Finished);
+    }
+    dragLeaveHandler(event) {
+        const listEl = this.element.querySelector('ul');
+        listEl.classList.remove('droppable');
     }
     renderProjects() {
         const listEl = document.getElementById(`${this.type}-projects-list`);
@@ -131,6 +172,9 @@ class ProjectList extends Component {
         }
     }
     configure() {
+        this.element.addEventListener('dragover', this.dragOverHandler);
+        this.element.addEventListener('dragleave', this.dragLeaveHandler);
+        this.element.addEventListener('drop', this.dropHandler);
         projectState.addListener((projects) => {
             const relevantProjects = projects.filter(project => {
                 if (this.type === 'active')
@@ -147,6 +191,15 @@ class ProjectList extends Component {
         this.element.querySelector('h2').textContent = this.type.toUpperCase() + ' PROJECTS';
     }
 }
+__decorate([
+    autobind
+], ProjectList.prototype, "dragOverHandler", null);
+__decorate([
+    autobind
+], ProjectList.prototype, "dropHandler", null);
+__decorate([
+    autobind
+], ProjectList.prototype, "dragLeaveHandler", null);
 ;
 class ProjectInput extends Component {
     constructor() {
